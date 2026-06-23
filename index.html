@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DAX Platform — Live</title>
+<title>Trading Dashboard</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <style>
   :root{--bg:#0b0e14;--card:#141a24;--bd:#222b3a;--fg:#e6edf3;--mut:#8b98a9;--grn:#3fb950;--red:#f85149;--yel:#d29922;--blu:#58a6ff}
@@ -20,17 +20,31 @@
   .tag{font-size:11px;padding:1px 6px;border-radius:5px;background:#1c2330}
   .lvl-URGENT{color:var(--red)}.lvl-WARN{color:var(--yel)}.lvl-INFO{color:var(--blu)}
   .wide{grid-column:1/-1}.scroll{max-height:280px;overflow:auto}
+  #gate{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:99}
+  #gate .box{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:28px;width:300px;text-align:center}
+  #gate input{width:100%;margin:14px 0;padding:10px;background:var(--bg);border:1px solid var(--bd);border-radius:8px;color:var(--fg);font-size:15px}
+  #gate button{width:100%;padding:10px;background:var(--blu);border:0;border-radius:8px;color:#001;font-weight:700;cursor:pointer}
+  #gate .err{color:var(--red);font-size:12px;height:16px}
+  #app{display:none}
 </style>
 </head>
 <body>
+<div id="gate"><div class="box">
+  <div style="font-weight:600">Trading Dashboard</div>
+  <div class="sub">Enter password to decrypt</div>
+  <input id="pw" type="password" placeholder="password" autofocus>
+  <div class="err" id="err"></div>
+  <button id="go">Unlock</button>
+</div></div>
+
+<div id="app">
 <header>
-  <h1>DAX Intraday — Live</h1>
+  <h1>Trading Dashboard</h1>
   <span id="now" class="sub"></span>
   <span id="gw" class="pill"></span><span id="eng" class="pill"></span>
   <span id="armed" class="pill"></span><span id="brk" class="pill"></span>
   <span class="sub" style="margin-left:auto" id="stale"></span>
 </header>
-
 <div class="grid">
   <div class="card">
     <h2>P&amp;L (broker, paper)</h2>
@@ -39,87 +53,79 @@
     <div class="row"><span class="mut">Open positions</span><span id="opos" class="mono"></span></div>
     <div class="row"><span class="mut">Strat A / B (gross bps today)</span><span id="bps" class="mono"></span></div>
   </div>
-
-  <div class="card" style="min-width:0">
-    <h2>Realized P&amp;L — today</h2>
-    <canvas id="chart" height="150"></canvas>
-  </div>
-
-  <div class="card">
-    <h2>Strategies</h2>
-    <div id="strats"></div>
-  </div>
-
-  <div class="card">
-    <h2>Open positions</h2>
-    <div class="scroll"><table id="pos"><thead><tr><th>Sym</th><th>Side</th><th class="r">Qty</th><th class="r">Entry</th></tr></thead><tbody></tbody></table></div>
-  </div>
-
-  <div class="card wide">
-    <h2>Order failures (execution doctor)</h2>
-    <div class="scroll"><table id="ord"><thead><tr><th>Time</th><th>Sym</th><th>Side</th><th>Kind</th><th class="r">Retries</th><th class="r">Cross</th><th>Reason</th></tr></thead><tbody></tbody></table></div>
-  </div>
-
-  <div class="card wide">
-    <h2>Alerts</h2>
-    <div class="scroll"><table id="al"><thead><tr><th>Time</th><th>Lvl</th><th>Kind</th><th>Message</th><th>Sent</th></tr></thead><tbody></tbody></table></div>
-  </div>
-
-  <div class="card wide">
-    <h2>Autonomous param changes (tuner audit)</h2>
-    <div class="scroll"><table id="pc"><thead><tr><th>Time</th><th>Param</th><th>Old→New</th><th>Auto</th><th>Reason</th></tr></thead><tbody></tbody></table></div>
-  </div>
-
+  <div class="card" style="min-width:0"><h2>Realized P&amp;L — today</h2><canvas id="chart" height="150"></canvas></div>
+  <div class="card"><h2>Strategies</h2><div id="strats"></div></div>
+  <div class="card"><h2>Open positions</h2><div class="scroll"><table id="pos"><thead><tr><th>Sym</th><th>Side</th><th class="r">Qty</th><th class="r">Entry</th></tr></thead><tbody></tbody></table></div></div>
+  <div class="card wide"><h2>Order failures (execution doctor)</h2><div class="scroll"><table id="ord"><thead><tr><th>Time</th><th>Sym</th><th>Side</th><th>Kind</th><th class="r">Retries</th><th class="r">Cross</th><th>Reason</th></tr></thead><tbody></tbody></table></div></div>
+  <div class="card wide"><h2>Alerts</h2><div class="scroll"><table id="al"><thead><tr><th>Time</th><th>Lvl</th><th>Kind</th><th>Message</th><th>Sent</th></tr></thead><tbody></tbody></table></div></div>
+  <div class="card wide"><h2>Autonomous param changes (tuner audit)</h2><div class="scroll"><table id="pc"><thead><tr><th>Time</th><th>Param</th><th>Old→New</th><th>Auto</th><th>Reason</th></tr></thead><tbody></tbody></table></div></div>
   <div class="card wide"><h2>Daily digest</h2><div id="dig" class="mut">—</div></div>
+</div>
 </div>
 
 <script>
 let chart;
 const eur = v => (v==null?'—':(v>=0?'+':'')+Number(v).toFixed(0)+' €');
 const tm = s => s? String(s).slice(11,19) : '';
-function pill(el,on,txtOn,txtOff,warn){el.textContent=on?txtOn:txtOff;el.className='pill '+(warn?'warn':(on?'ok':'bad'));}
+const b64 = s => Uint8Array.from(atob(s), c=>c.charCodeAt(0));
+function pill(el,on,a,b,warn){el.textContent=on?a:b;el.className='pill '+(warn?'warn':(on?'ok':'bad'));}
+
+async function decrypt(blob, pw){
+  const enc=new TextEncoder();
+  const base=await crypto.subtle.importKey('raw',enc.encode(pw),'PBKDF2',false,['deriveKey']);
+  const key=await crypto.subtle.deriveKey(
+    {name:'PBKDF2',salt:b64(blob.salt),iterations:blob.iter||200000,hash:'SHA-256'},
+    base,{name:'AES-GCM',length:256},false,['decrypt']);
+  const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:b64(blob.iv)},key,b64(blob.ct));
+  return JSON.parse(new TextDecoder().decode(pt));
+}
+async function getState(){
+  const blob=await (await fetch('./state.json?t='+Date.now())).json();
+  if(!blob.enc) return blob;
+  return await decrypt(blob, sessionStorage.getItem('dpw'));
+}
+async function unlock(){
+  const pw=document.getElementById('pw').value;
+  try{
+    const blob=await (await fetch('./state.json?t='+Date.now())).json();
+    await decrypt(blob, pw);
+    sessionStorage.setItem('dpw', pw);
+    document.getElementById('gate').style.display='none';
+    document.getElementById('app').style.display='block';
+    tick(); setInterval(tick,15000);
+  }catch(e){ document.getElementById('err').textContent='Wrong password'; }
+}
+document.getElementById('go').onclick=unlock;
+document.getElementById('pw').addEventListener('keydown',e=>{if(e.key==='Enter')unlock();});
+if(sessionStorage.getItem('dpw')) unlock();
 
 async function tick(){
-  let d; try{ d = await (await fetch('./state.json?t='+Date.now())).json(); }catch(e){ return; }
-  document.getElementById('now').textContent = 'snapshot '+tm(d.now)+' Berlin';
+  let d; try{ d=await getState(); }catch(e){ return; }
+  document.getElementById('now').textContent='snapshot '+tm(d.now)+' Berlin';
   const h=d.health;
-  pill(document.getElementById('gw'), h.gateway_4002, 'Gateway ●', 'Gateway ○');
-  pill(document.getElementById('eng'), h.connected_today, 'Engine connected', 'Engine idle', !h.connected_today);
-  pill(document.getElementById('armed'), d.flags.tuner_armed, 'Tuner ARMED', 'Tuner proposing', !d.flags.tuner_armed);
+  pill(document.getElementById('gw'),h.gateway_4002,'Gateway ●','Gateway ○');
+  pill(document.getElementById('eng'),h.connected_today,'Engine connected','Engine idle',!h.connected_today);
+  pill(document.getElementById('armed'),d.flags.tuner_armed,'Tuner ARMED','Tuner proposing',!d.flags.tuner_armed);
   const brk=document.getElementById('brk'); if(d.flags.circuit_breaker||d.flags.halt){brk.style.display='';pill(brk,false,'','HALT/BREAKER');}else brk.style.display='none';
-  document.getElementById('stale').textContent = h.last_sweep? ('last sweep '+tm(h.last_sweep)+' · '+(h.symbols_live||'')+' live · '+h.open_positions+' open') : (h.last_line||'');
-
+  document.getElementById('stale').textContent=h.last_sweep?('last sweep '+tm(h.last_sweep)+' · '+(h.symbols_live||'')+' live · '+h.open_positions+' open'):(h.last_line||'');
   const b=(d.broker_pnl||[])[0]||{};
-  document.getElementById('real').textContent=eur(b.realized_eur);
-  document.getElementById('real').style.color=(b.realized_eur||0)>=0?'var(--grn)':'var(--red)';
+  const rl=document.getElementById('real'); rl.textContent=eur(b.realized_eur); rl.style.color=(b.realized_eur||0)>=0?'var(--grn)':'var(--red)';
   document.getElementById('unreal').textContent=eur(b.unrealized_eur);
   document.getElementById('opos').textContent=b.open_positions??'—';
   const byS={}; (d.pnl_today||[]).forEach(r=>byS[r.strategy]=r.bps);
   document.getElementById('bps').textContent=`A ${byS.A??0} / B ${byS.B??0}`;
-
-  document.getElementById('strats').innerHTML=(d.strategies||[]).map(s=>`
-    <div style="padding:7px 0;border-bottom:1px solid var(--bd)">
-      <div class="row"><b>Strat ${s.id}</b><span class="tag">z>${s.z} · ${s.window} · max ${s.max}</span></div>
-      <div class="mut" style="font-size:12px">${s.desc}</div></div>`).join('');
-
+  document.getElementById('strats').innerHTML=(d.strategies||[]).map(s=>`<div style="padding:7px 0;border-bottom:1px solid var(--bd)"><div class="row"><b>Strat ${s.id}</b><span class="tag">z>${s.z} · ${s.window} · max ${s.max}</span></div><div class="mut" style="font-size:12px">${s.desc}</div></div>`).join('');
   fill('pos',(d.positions||[]),p=>`<td>${p.symbol}</td><td>${p.side}</td><td class="r mono">${p.qty}</td><td class="r mono">${p.entry_px?.toFixed?.(2)??''}</td>`,'flat');
   fill('ord',(d.orders||[]),o=>`<td class="mono">${tm(o.ts)}</td><td>${o.symbol??''}</td><td>${o.side??''}</td><td><span class="tag">${o.kind}</span></td><td class="r">${o.retries??''}</td><td class="r">${o.max_cross_bps??''}</td><td class="mut">${(o.reason||'').slice(0,70)}</td>`,'no failures');
   fill('al',(d.alerts||[]),a=>`<td class="mono">${tm(a.ts)}</td><td class="lvl-${a.level}">${a.level}</td><td>${a.kind}</td><td>${a.message.slice(0,90)}</td><td>${a.sent_imessage?'✓':'…'}</td>`,'no alerts');
   fill('pc',(d.param_changes||[]),c=>`<td class="mono">${tm(c.ts)}</td><td>${c.param}</td><td class="mono">${c.old_value}→${c.new_value}</td><td>${c.autonomous?'auto':'man'}</td><td class="mut">${(c.reason||'').slice(0,70)}</td>`,'no changes');
   document.getElementById('dig').textContent=(d.digest||[])[0]?.summary||'—';
-
   const pts=(d.pnl_series||[]).filter(r=>r.strategy==='broker'&&r.realized_eur!=null);
-  const labels=pts.map(r=>tm(r.ts)), vals=pts.map(r=>r.realized_eur);
-  if(!chart){chart=new Chart(document.getElementById('chart'),{type:'line',
-    data:{labels,datasets:[{data:vals,borderColor:'#3fb950',backgroundColor:'rgba(63,185,80,.1)',fill:true,tension:.25,pointRadius:0,borderWidth:2}]},
-    options:{plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#8b98a9',maxTicksLimit:6},grid:{display:false}},y:{ticks:{color:'#8b98a9'},grid:{color:'#1c2330'}}}}});}
+  const labels=pts.map(r=>tm(r.ts)),vals=pts.map(r=>r.realized_eur);
+  if(!chart){chart=new Chart(document.getElementById('chart'),{type:'line',data:{labels,datasets:[{data:vals,borderColor:'#3fb950',backgroundColor:'rgba(63,185,80,.1)',fill:true,tension:.25,pointRadius:0,borderWidth:2}]},options:{plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#8b98a9',maxTicksLimit:6},grid:{display:false}},y:{ticks:{color:'#8b98a9'},grid:{color:'#1c2330'}}}}});}
   else{chart.data.labels=labels;chart.data.datasets[0].data=vals;chart.update('none');}
 }
-function fill(id,rows,fn,empty){
-  const tb=document.querySelector('#'+id+' tbody');
-  tb.innerHTML=rows.length?rows.map(r=>`<tr>${fn(r)}</tr>`).join(''):`<tr><td colspan="9" class="mut">${empty}</td></tr>`;
-}
-tick(); setInterval(tick,15000);
+function fill(id,rows,fn,empty){document.querySelector('#'+id+' tbody').innerHTML=rows.length?rows.map(r=>`<tr>${fn(r)}</tr>`).join(''):`<tr><td colspan="9" class="mut">${empty}</td></tr>`;}
 </script>
 </body>
 </html>
