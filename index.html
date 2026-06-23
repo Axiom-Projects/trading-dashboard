@@ -44,15 +44,17 @@
   <h1>Trading Dashboard</h1><span id="now" class="sub"></span>
   <span id="gw" class="pill"></span><span id="armed" class="pill"></span><span id="brk" class="pill"></span>
   <div class="kpi">
-    <div><span class="l">Realized (base GBP)</span><b id="oReal" class="mono">—</b></div>
-    <div><span class="l">Unrealized</span><b id="oUnreal" class="mono">—</b></div>
-    <div><span class="l">Open</span><b id="oOpen" class="mono">—</b></div>
-    <div><span class="l">Markets live</span><b id="oLive" class="mono">—</b></div>
+    <div><span class="l">Locked-in P&amp;L (realized)</span><b id="oReal" class="mono">—</b></div>
+    <div><span class="l">Outstanding P&amp;L (live)</span><b id="oUnreal" class="mono">—</b></div>
+    <div><span class="l">Gross exposure</span><b id="oGross" class="mono">—</b></div>
+    <div><span class="l">Max today</span><b id="oMax" class="mono">—</b></div>
+    <div><span class="l">Open · live</span><b id="oOpen" class="mono">—</b></div>
   </div>
 </header>
 <div class="clock" id="clock"></div>
 <div class="grid" id="markets"></div>
 <div class="wrap">
+  <div class="card"><h2>Strategies — P&amp;L today</h2><table id="strat"><thead><tr><th>Strategy</th><th>Status</th><th class="r">Trades</th><th class="r">Gross bps</th></tr></thead><tbody></tbody></table></div>
   <div class="card"><h2>Realized P&amp;L by market — today (native ccy)</h2><canvas id="chart" height="90"></canvas></div>
   <div class="card"><h2>Open positions</h2><div class="scroll"><table id="pos"><thead><tr><th>Mkt</th><th>Sym</th><th>Side</th><th class="r">Qty</th><th class="r">Entry</th></tr></thead><tbody></tbody></table></div></div>
   <div class="card"><h2>Order failures (execution doctor)</h2><div class="scroll"><table id="ord"><thead><tr><th>Time</th><th>Sym</th><th>Kind</th><th class="r">Retries</th><th>Reason</th></tr></thead><tbody></tbody></table></div></div>
@@ -67,6 +69,8 @@ const tm=s=>s?String(s).slice(11,19):'';
 const b64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
 const SYM={EUR:'€',USD:'$',GBP:'£',AUD:'A$',HKD:'HK$',CHF:'Fr',JPY:'¥'};
 function money(v,ccy){if(v==null)return'—';const s=v>=0?'+':'';return s+(SYM[ccy]||'')+Math.round(v).toLocaleString();}
+function gbp(v){return v==null?'—':'£'+Math.round(v).toLocaleString();}
+function setpnl(id,v){const e=document.getElementById(id);if(!e)return;e.textContent=money(v,'GBP');e.style.color=(v||0)>=0?'var(--grn)':'var(--red)';}
 function pill(el,on,a,b,warn){el.textContent=on?a:b;el.className='pill '+(warn?'warn':(on?'ok':'bad'));}
 
 async function decrypt(blob,pw){const enc=new TextEncoder();
@@ -89,10 +93,11 @@ async function tick(){
   pill(document.getElementById('armed'),d.flags.tuner_armed,'Tuner ARMED','Tuner proposing',!d.flags.tuner_armed);
   const brk=document.getElementById('brk');if(d.flags.circuit_breaker||d.flags.halt){brk.style.display='';pill(brk,false,'','HALT/BREAKER');}else brk.style.display='none';
   const o=d.overall;
-  document.getElementById('oReal').textContent=money(o.realized_gbp,'GBP');document.getElementById('oReal').style.color=(o.realized_gbp||0)>=0?'var(--grn)':'var(--red)';
-  document.getElementById('oUnreal').textContent=money(o.unrealized_gbp,'GBP');
-  document.getElementById('oOpen').textContent=o.open_positions??0;
-  document.getElementById('oLive').textContent=o.markets_live;
+  setpnl('oReal',o.realized_gbp); setpnl('oUnreal',o.unrealized_gbp);
+  document.getElementById('oGross').textContent=gbp(o.gross_exposure);
+  document.getElementById('oMax').textContent=gbp(o.max_gross_today);
+  document.getElementById('oOpen').textContent=(o.open_positions??0)+' · '+o.markets_live;
+  fill('strat',d.strategies,s=>`<td>${s.name}</td><td><span class="tag">${s.status}</span></td><td class="r mono">${s.entries}e ${s.exits}x</td><td class="r mono" style="color:${s.gross_bps>=0?'var(--grn)':'var(--red)'}">${s.gross_bps}</td>`,'—');
   // follow-the-sun clock
   document.getElementById('clock').innerHTML=(d.clock||[]).map(c=>`<span class="ck ph-${c.phase}">${c.market} <span class="mut">${c.local}</span> ${c.phase.replace('_',' ')}</span>`).join('');
   // market cards
@@ -102,7 +107,8 @@ async function tick(){
     return `<div class="mkt"><div class="top"><span class="nm"><span class="dot" style="background:${dot}"></span>${m.market}</span>
       <span class="tag ph-${m.phase}">${m.phase.replace('_',' ')} ${m.local_time}</span></div>
       <div class="pnl" style="color:${col}">${money(m.realized,m.ccy)}</div>
-      <div class="row"><span>Unrealized</span><span class="mono">${money(m.unrealized,m.ccy)}</span></div>
+      <div class="row"><span>Outstanding (unreal.)</span><span class="mono">${money(m.unrealized,m.ccy)}</span></div>
+      <div class="row"><span>Gross / net exp.</span><span class="mono">${m.gross!=null?(SYM[m.ccy]||'')+Math.round(m.gross).toLocaleString():'—'} / ${m.net!=null?(SYM[m.ccy]||'')+Math.round(m.net).toLocaleString():'—'}</span></div>
       <div class="row"><span>Open / Trades</span><span class="mono">${m.open_positions} / ${m.entries}e ${m.exits}x</span></div>
       <div class="row"><span>Gross bps · engine</span><span class="mono">${m.gross_bps} · ${m.engine_live?'<span style="color:var(--grn)">live</span>':'idle'}</span></div>
       ${m.leak?'<div class="row" style="color:var(--red)">⚠ EXIT LEAK</div>':''}</div>`;
