@@ -1,0 +1,195 @@
+{
+ "now": "2026-06-23T21:14:01.454265+02:00",
+ "health": {
+  "gateway_4002": false,
+  "last_line": "2026-06-23 16:31:09,787 INFO Disconnecting",
+  "last_sweep": "2026-06-23 16:24:09",
+  "connected_today": true,
+  "symbols_live": "41/41",
+  "open_positions": 0
+ },
+ "flags": {
+  "tuner_armed": false,
+  "halt": false,
+  "circuit_breaker": false
+ },
+ "params": {
+  "Z_A": 4.0,
+  "Z_B": 3.0,
+  "MIN_DISLOC_BPS": 40.0,
+  "MIN_DEV_BPS": 30.0,
+  "MAX_HOLD_A": 120,
+  "MAX_HOLD_B": 60,
+  "EXIT_Z": 0.5,
+  "LEG_NOTIONAL_EUR": 15000,
+  "MAX_SPREADS_A": 3,
+  "MAX_NAMES_B": 5,
+  "MIN_ADV_EUR": 5000000,
+  "LIMIT_CROSS_BPS": 10,
+  "A_START_MIN": 545,
+  "A_END_MIN": 600,
+  "B_START_MIN": 600,
+  "B_END_MIN": 990,
+  "_note": "Tunable knobs read by live_paper.py at startup + hot-reloaded each sweep. Written by the autonomous tuner (trading-platform/agents/tuner.py); every change is audited in market.db param_changes. Seeded 2026-06-22 to replicate the engine's hardcoded defaults exactly."
+ },
+ "strategies": [
+  {
+   "id": "A",
+   "desc": "Morning sector-dislocation fade (09:05\u201310:00), euro-neutral peer hedge \u2014 experiment size.",
+   "z": 4.0,
+   "window": "09:05-10:00",
+   "max": 3
+  },
+  {
+   "id": "B",
+   "desc": "VWAP-reversion fade (10:00\u2013B_END), market-neutral. Confirmed edge: morning z>3 10:00\u201311:30.",
+   "z": 3.0,
+   "window": "10:00-16:30",
+   "max": 5
+  }
+ ],
+ "pnl_series": [
+  {
+   "ts": "2026-06-23T21:00:43.650388+02:00",
+   "strategy": "A",
+   "gross_bps": 124.0,
+   "realized_eur": null,
+   "unrealized_eur": null
+  },
+  {
+   "ts": "2026-06-23T21:00:43.650784+02:00",
+   "strategy": "B",
+   "gross_bps": 346.0,
+   "realized_eur": null,
+   "unrealized_eur": null
+  },
+  {
+   "ts": "2026-06-23T21:03:14.583443+02:00",
+   "strategy": "A",
+   "gross_bps": 124.0,
+   "realized_eur": null,
+   "unrealized_eur": null
+  },
+  {
+   "ts": "2026-06-23T21:03:14.584351+02:00",
+   "strategy": "B",
+   "gross_bps": 346.0,
+   "realized_eur": null,
+   "unrealized_eur": null
+  },
+  {
+   "ts": "2026-06-23T21:08:14.774787+02:00",
+   "strategy": "A",
+   "gross_bps": 124.0,
+   "realized_eur": null,
+   "unrealized_eur": null
+  },
+  {
+   "ts": "2026-06-23T21:08:14.776746+02:00",
+   "strategy": "B",
+   "gross_bps": 346.0,
+   "realized_eur": null,
+   "unrealized_eur": null
+  },
+  {
+   "ts": "2026-06-23T21:13:14.968589+02:00",
+   "strategy": "A",
+   "gross_bps": 124.0,
+   "realized_eur": null,
+   "unrealized_eur": null
+  },
+  {
+   "ts": "2026-06-23T21:13:14.970186+02:00",
+   "strategy": "B",
+   "gross_bps": 346.0,
+   "realized_eur": null,
+   "unrealized_eur": null
+  }
+ ],
+ "pnl_today": [
+  {
+   "strategy": "A",
+   "bps": 496.0,
+   "n": 4
+  },
+  {
+   "strategy": "B",
+   "bps": 1384.0,
+   "n": 4
+  }
+ ],
+ "broker_pnl": [],
+ "positions": [],
+ "alerts": [
+  {
+   "ts": "2026-06-23T21:07:57.625759+02:00",
+   "level": "URGENT",
+   "kind": "order_diag",
+   "message": "ORDER DIAG (5 fails): All failures are exit_unfilled marketable limits priced off a 15-min DELAYED `last`. The real market drifted past the stale limit during the delay window, so orders never crossed and cancelled after retries. Not symbol- or strategy-specific \u2014 it's the pricing source. | FIX: Stop pricing limits off delayed `last`; subscribe to real-time L1 and peg marketable limits to live bid/ask (or use MKT/MOC for exits). Widen cross only as fallback.",
+   "sent_imessage": 1
+  },
+  {
+   "ts": "2026-06-23T21:07:10.768012+02:00",
+   "level": "URGENT",
+   "kind": "order_diag",
+   "message": "ORDER DIAG (18 fails): Exits are marketable limits priced off a 15-min DELAYED `last`, so limit prices lag the true book. In a moving market the limit sits behind the real cross, never fills across 3 retries despite 20\u201380bps allowance, then IBKR rejects with code 202 (auto-cancel). Not a venue/qty issue \u2014 stale pricing input. | FIX: Subscribe to real-time L1 (bid/ask) and price marketable exits off the live opposite-side quote, not delayed `last`; mark-out cross from live mid. Don't widen bps on",
+   "sent_imessage": 1
+  },
+  {
+   "ts": "2026-06-23T21:00:43.651118+02:00",
+   "level": "URGENT",
+   "kind": "exit_leak",
+   "message": "EXIT LEAK \u2014 a position could not be unwound; manual check needed",
+   "sent_imessage": 1
+  }
+ ],
+ "orders": [
+  {
+   "ts": "2026-06-23 10:28:25",
+   "symbol": "MBG",
+   "side": "BUY",
+   "kind": "exit_unfilled",
+   "retries": 1,
+   "max_cross_bps": 20.0,
+   "reason": "marketable limit unfilled across rising cross \u2014 limit priced off stale delayed quote; true market moved away (no real-time data)"
+  },
+  {
+   "ts": "2026-06-23 10:04:26",
+   "symbol": "P911",
+   "side": "BUY",
+   "kind": "exit_unfilled",
+   "retries": 3,
+   "max_cross_bps": 80.0,
+   "reason": "marketable limit unfilled across rising cross \u2014 limit priced off stale delayed quote; true market moved away (no real-time data)"
+  },
+  {
+   "ts": "2026-06-23 08:17:07",
+   "symbol": "FRE",
+   "side": "BUY",
+   "kind": "exit_unfilled",
+   "retries": 3,
+   "max_cross_bps": 80.0,
+   "reason": "marketable limit unfilled across rising cross \u2014 limit priced off stale delayed quote; true market moved away (no real-time data)"
+  },
+  {
+   "ts": "2026-06-23 08:16:19",
+   "symbol": "BAYN",
+   "side": "BUY",
+   "kind": "exit_unfilled",
+   "retries": 3,
+   "max_cross_bps": 80.0,
+   "reason": "marketable limit unfilled across rising cross \u2014 limit priced off stale delayed quote; true market moved away (no real-time data)"
+  },
+  {
+   "ts": "2026-06-23 08:15:31",
+   "symbol": "SHL",
+   "side": "SELL",
+   "kind": "exit_unfilled",
+   "retries": 3,
+   "max_cross_bps": 80.0,
+   "reason": "marketable limit unfilled across rising cross \u2014 limit priced off stale delayed quote; true market moved away (no real-time data)"
+  }
+ ],
+ "param_changes": [],
+ "digest": []
+}
